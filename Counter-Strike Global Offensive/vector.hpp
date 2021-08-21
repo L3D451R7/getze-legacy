@@ -31,6 +31,20 @@ public:
 	float Length2D() const;
 	float NormalizeInPlace() const;
 
+	FORCEINLINE void ValidateVector()
+	{
+		if (std::isnan(this->x)
+			|| std::isnan(this->y)
+			|| std::isnan(this->z))
+			this->Set();
+
+		if (std::isinf(this->x)
+			|| std::isinf(this->y)
+			|| std::isinf(this->z))
+			this->Set();
+	}
+
+
 	float DistanceSquared( const Vector& v ) const;
 	float Distance( const Vector& v ) const;
 

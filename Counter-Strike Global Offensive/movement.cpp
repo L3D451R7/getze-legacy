@@ -222,31 +222,8 @@ namespace Engine
 		cmd->sidemove = new_sidemove;
 	}
 
-	void Movement::quick_stop(CUserCmd* cmd) {
-		/*auto vel = cheat::main::local()->m_vecVelocity();
-		float speed = vel.Length2D();
-		if (speed > 13.f) {
-			QAngle direction = QAngle::Zero;
-			Math::VectorAngles({ 0.f, 0.f, 0.f }, vel, direction);
-			direction.y = cmd->viewangles.y - direction.y;
-
-			Vector new_move = Vector::Zero;
-			Math::AngleVectors(direction, &new_move);
-			new_move *= -450.f;
-
-			cmd->forwardmove = new_move.x;
-			cmd->sidemove = new_move.y;
-		}
-		else {
-			cmd->forwardmove = 0.f;
-			cmd->sidemove = 0.f;
-		}*/
-
-		/*cmd->sidemove = 0;
-		cmd->forwardmove = 450;
-
-		RotateMovement(cmd, Math::CalcAngle(Vector(0, 0, 0), cheat::main::local()->m_vecVelocity()).y + 180.f);*/
-
+	void Movement::quick_stop(CUserCmd* cmd) 
+	{
 		Vector hvel = cheat::main::local()->m_vecVelocity();
 		hvel.z = 0;
 		float speed = hvel.Length2D();

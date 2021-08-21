@@ -383,12 +383,12 @@ namespace Hooked
 				entity->draw_model(0x1, 255);
 				Source::m_pModelRender->ForcedMaterialOverride(nullptr);
 
-				if (cheat::Cvars.Visuals_chams_type.GetValue() == 2 && player_record->m_Tickrecords.size() > 3 && !cheat::main::local()->IsDead() && !is_local_player)
+				if (cheat::Cvars.Visuals_chams_type.GetValue() == 2 && player_record->tick_records.size() > 3 && !cheat::main::local()->IsDead() && !is_local_player)
 				{
 					C_Tickrecord backup;
 					cheat::features::lagcomp.store_record_data(entity, &backup);
 
-					auto target_record = &player_record->m_Tickrecords.at(player_record->m_Tickrecords.size() - 2);
+					auto target_record = &player_record->tick_records.at(player_record->tick_records.size() - 2);
 
 					if (backup.simulation_time > 0.f && target_record->origin.Distance(backup.origin) > 16) {
 

@@ -1497,6 +1497,7 @@ namespace cheat
 		bool fakewalking;
 		bool updating_skins;
 		int prev_fakelag_value;
+		int skip_shot=0;
 		int side = 2;
 		int shots_fired[128];
 		int shots_total[128];
@@ -1518,6 +1519,7 @@ namespace cheat
 		float fov;
 		matrix3x4_t zero_matrix[128];
 		int last_frame_stage = 0;
+		float latency = 0;
 		bool fix_modify_eye_pos = false;
 		bool can_store_netvars = false;
 		bool run_cmd_got_called = false;

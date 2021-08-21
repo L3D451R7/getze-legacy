@@ -11,6 +11,7 @@ struct PlayerData
 	QAngle m_aimPunchAngleVel = {};
 	Vector m_vecVelocity = {};
 	Vector m_vecViewOffset = {};
+	int command_number = {};
 	bool filled = false;
 	//float m_flFallVelocity = 0.0f;
 };
@@ -25,8 +26,9 @@ public:
 	CUserCmd GetPrevCmd();
 	Vector GetVelocity();
 
-	void RestoreNetvars(bool prev = false);
-	void OnRunCommand( C_BasePlayer* player);
+	void RestoreNetvars(int cmdnr);
+	void DetectPredError();
+	void OnRunCommand( C_BasePlayer* player, int cmdnr);
 
 private:
 	CUserCmd* m_pCmd = nullptr;
@@ -40,7 +42,7 @@ private:
 
 	float m_flCurrentTime = 0.0f;
 	float m_flFrameTime = 0.0f;
-	int m_nServerCommandsAcknowledged;
+	bool m_bFirstTimePredicted;
 	bool m_bInPrediction;
 	int m_nTickBase = 0;
 

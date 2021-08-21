@@ -15,8 +15,6 @@ namespace Engine
 		if (C_CSPlayer::GetLocalPlayer())
 			m_nTickBase = C_CSPlayer::GetLocalPlayer()->m_nTickBase();
 
-		RestoreNetvars();
-
 		//static auto host_frameticks = (int*)(Memory::Scan("engine.dll", "03 05 ? ? ? ? 83 CF 10") + 2);
 		//if (*host_frameticks > 1) {
 		//	auto delta_tick = Source::m_pClientState->m_iDeltaTick;
@@ -46,11 +44,11 @@ namespace Engine
 		m_flCurrentTime = Source::m_pGlobalVars->curtime;
 		m_flFrameTime = Source::m_pGlobalVars->frametime;
 
-		m_nServerCommandsAcknowledged = *(int*)(uintptr_t(Source::m_pPrediction) + 0x20);
-		m_bInPrediction = *(bool*)(uintptr_t(Source::m_pPrediction) + 8);
+		m_bFirstTimePredicted = Source::m_pPrediction->m_bFirstTimePredicted;
+		m_bInPrediction = Source::m_pPrediction->m_bInPrediction;
 
-		*(int*)(uintptr_t(Source::m_pPrediction) + 0x20) = 0;
-		*(bool*)(uintptr_t(Source::m_pPrediction) + 8) = true;
+		Source::m_pPrediction->m_bFirstTimePredicted = 0;
+		Source::m_pPrediction->m_bInPrediction = true;
 
 		const auto randomseed = *(int*)(Engine::Displacement::Data::m_uPredictionRandomSeed);
 		const auto ucmd = *(CUserCmd * *)(uintptr_t(m_pPlayer) + Engine::Displacement::C_BasePlayer::m_pCurrentCommand);
@@ -59,9 +57,6 @@ namespace Engine
 		//auto tickbase = m_pPlayer->m_nTickBase();
 
 		cmd->random_seed = MD5_PseudoRandom(cmd->command_number) & 0x7fffffff;
-
-		Source::m_pGlobalVars->curtime = TICKS_TO_TIME(m_pPlayer->m_nTickBase());
-		Source::m_pGlobalVars->frametime = *(bool*)(uintptr_t(Source::m_pPrediction) + 0xA)/*m_bEnginePaused*/ ? 0.f : Source::m_pGlobalVars->interval_per_tick;
 
 		CMoveData move = { };
 		memset(&move, 0, sizeof(move));
@@ -82,8 +77,8 @@ namespace Engine
 		C_BaseEntity::SetPredictionPlayer(predplayer);
 		m_pPlayer->SetCurrentCommand(ucmd);
 
-		*(int*)(uintptr_t(Source::m_pPrediction) + 0x20) = m_nServerCommandsAcknowledged;
-		*(bool*)(uintptr_t(Source::m_pPrediction) + 8) = m_bInPrediction;
+		Source::m_pPrediction->m_bFirstTimePredicted = m_bFirstTimePredicted;
+		Source::m_pPrediction->m_bInPrediction = m_bInPrediction;
 
 		if (m_pWeapon)
 			m_pWeapon->UpdateAccuracyPenalty();
@@ -136,17 +131,16 @@ namespace Engine
 		return m_vecVelocity;
 	}
 
-	void Prediction::RestoreNetvars(bool prev)
+	void Prediction::RestoreNetvars(int cmdnr)
 	{
 		auto local = C_CSPlayer::GetLocalPlayer();
 
 		if (!local)
 			return;
 
-		auto slot = local->m_nTickBase() - (prev ? 1 : 0);
-		auto data = &m_Data[slot % 150];
+		auto data = &m_Data[cmdnr % 150];
 
-		if (!data->filled)
+		if (!data->filled || cmdnr != data->command_number)
 			return;
 
 		const auto aim_punch_vel_diff = data->m_aimPunchAngleVel - local->m_aimPunchAngleVel();
@@ -159,14 +153,91 @@ namespace Engine
 		if (fabs(aim_punch_diff.x) <= 0.03125f && fabs(aim_punch_diff.y) <= 0.03125f && fabs(aim_punch_diff.z) <= 0.03125f)
 			local->m_aimPunchAngle() = data->m_aimPunchAngle;
 
-		//if (fabs(vel_diff.x) <= 0.03125f && fabs(vel_diff.y) <= 0.03125f && fabs(vel_diff.z) <= 0.03125f)
-		//	local->m_vecVelocity() = data->m_vecVelocity;
-
-		if (fabs(local->m_vecViewOffset().z - data->m_vecViewOffset.z) <= 0.03125f)
+		if (fabs(local->m_vecViewOffset().z - data->m_vecViewOffset.z) <= 0.125f)
 			local->m_vecViewOffset().z = fminf(fmaxf(data->m_vecViewOffset.z, 46.0f), 64.0f);
 	}
 
-	void Prediction::OnRunCommand(C_BasePlayer* player)
+	void Prediction::DetectPredError()
+	{
+		if (m_data->m_command_number != m_tick || !m_data->is_filled)
+			return;
+
+		uintptr_t player = *g_local_ptr;
+
+		auto& m_aimPunchAngle = *(Vector*)(player + m_aimPunchAngleO);
+		auto& m_aimPunchAngleVel = *(Vector*)(player + m_aimPunchAngleVelO);
+		auto& m_viewPunchAngle = *(Vector*)(player + m_viewPunchAngleO);
+		auto& m_vecViewOffset = *(Vector*)(player + m_vecViewOffsetO);
+		auto& m_vecOrigin = *(Vector*)(player + m_vecOriginO);
+		auto& m_flVelocityModifier = *(float*)(player + m_flVelocityModifierO);
+		auto& m_bWaitForNoAttack = *(char*)(player + m_bWaitForNoAttackO);
+
+		m_data->m_bWaitForNoAttack = m_bWaitForNoAttack;
+
+		auto viewPunch_delta = std::fabsf(m_viewPunchAngle.x - m_data->m_viewPunchAngle.x);
+
+		if (viewPunch_delta <= 0.03125f)
+			m_viewPunchAngle.x = m_data->m_viewPunchAngle.x;
+
+		int v34 = 1;
+		int v35 = 1;
+		int repredict = 0;
+		int v37 = 1;
+
+		if (std::abs(m_aimPunchAngle.x - m_data->m_aimPunchAngle.x) > 0.03125f
+			|| std::abs(m_aimPunchAngle.y - m_data->m_aimPunchAngle.y) > 0.03125f
+			|| std::abs(m_aimPunchAngle.z - m_data->m_aimPunchAngle.z) > 0.03125f)
+		{
+			v34 = 0;
+		}
+
+		if (v34)
+			m_aimPunchAngle = m_data->m_aimPunchAngle;
+		else {
+			//csgo.m_engine()->OnPredError();
+			m_data->m_aimPunchAngle = m_aimPunchAngle;
+			//feature::anti_aim->force_unchoke = 1;
+			repredict = 1;
+		}
+
+		if (std::abs(m_aimPunchAngleVel.x - m_data->m_aimPunchAngleVel.x) > 0.03125f
+			|| std::abs(m_aimPunchAngleVel.y - m_data->m_aimPunchAngleVel.y) > 0.03125f
+			|| std::abs(m_aimPunchAngleVel.z - m_data->m_aimPunchAngleVel.z) > 0.03125f)
+		{
+			v35 = 0;
+		}
+
+		if (v35)
+			m_aimPunchAngleVel = m_data->m_aimPunchAngleVel;
+		else {
+			m_data->m_aimPunchAngleVel = m_aimPunchAngleVel;
+			repredict = 1;
+		}
+
+		auto v28 = std::abs(m_vecViewOffset.z - m_data->m_vecViewOffset.z);
+		if (v28 > 0.125f)
+		{
+			m_data->m_vecViewOffset.z = m_vecViewOffset.z;
+			repredict = 1;
+		}
+		else
+			m_vecViewOffset.z = m_data->m_vecViewOffset.z;
+
+		if ((m_vecOrigin - m_data->m_vecOrigin).LengthSquared() >= 1.0f)
+		{
+			m_data->m_vecOrigin = m_vecOrigin;
+			repredict = 1;
+		}
+
+		if (repredict)
+		{
+			prediction->m_nPreviousStartFrame = -1;
+			prediction->m_nCommandsPredicted = 0;
+			prediction->m_bPreviousAckHadErrors = 1;
+		}
+	}
+
+	void Prediction::OnRunCommand(C_BasePlayer* player, int cmdnr)
 	{
 		//static auto prev_tickbase = 0;
 		auto local = C_CSPlayer::GetLocalPlayer();
@@ -174,13 +245,13 @@ namespace Engine
 		if (!local || local != player)
 			return;
 
-		auto slot = local->m_nTickBase();
-		auto data = &m_Data[slot % 150];
+		auto data = &m_Data[cmdnr % 150];
 
 		data->m_aimPunchAngle = local->m_aimPunchAngle();
 		data->m_vecViewOffset = local->m_vecViewOffset();
 		data->m_vecVelocity = local->m_vecVelocity();
 		data->m_aimPunchAngleVel = local->m_aimPunchAngleVel();
+		data->command_number = cmdnr;
 
 		data->filled = true;
 		//prev_tickbase = local->m_nTickBase();

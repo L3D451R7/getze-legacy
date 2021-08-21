@@ -12,40 +12,6 @@
 #include <intrin.h>
 #include "rmenu.hpp"
 
-//auto prev_choked = 0;
-//auto prev_seq = 0;
-//
-//inline auto ResolveRelativeAddress(uint8_t* address) {
-//	//извините за этот пиздец, кодил ќ„≈Ќ№ давно поэтому костыли  
-//	ptrdiff_t offset = (address[3] << 24) | (address[2] << 16) | (address[1] << 8) | (address[0]);
-//	return (address + 5 + offset);
-//}
-//
-//class NET_SignonState
-//{
-//public:
-//	NET_SignonState(int signonstate, int servercount);
-//	~NET_SignonState();
-//private:
-//	char pad0[80];
-//};
-//
-//NET_SignonState::NET_SignonState(int signonstate, int servercount)
-//{
-//	typedef void(__thiscall * oConstructor)(PVOID, int, int);
-//	static oConstructor Constructor = (oConstructor)(Memory::Scan("engine.dll", "55 8B EC 56 57 8B F9 8D 4F ?? C7 07 ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B 45 ?? C6 47 ?? ?? C7 47 ?? ?? ?? ?? ?? C7 47 ?? ?? ?? ?? ?? C6 47 ?? ?? C7 07 ?? ?? ?? ?? C7 47 ?? ?? ?? ?? ?? 83 4F ?? ?? 89 47 ?? 83 4F"));
-//
-//	Constructor(this, signonstate, servercount);
-//}
-//
-//NET_SignonState::~NET_SignonState()
-//{
-//	typedef void(__thiscall * oDestructor)(PVOID);
-//	static oDestructor Destructor = (oDestructor)(Memory::Scan("engine.dll", "53 56 57 8B F9 8D 77 ?? C7 07 ?? ?? ?? ?? C7 47 ?? ?? ?? ?? ?? 8B 46 ?? 83 F8 ?? 72 ?? 6A ?? 40 50 FF 36 E8 ?? ?? ?? ?? 83 C4 ?? C7 46 ?? ?? ?? ?? ?? 83 7E ?? ?? C7 46 ?? ?? ?? ?? ?? 72 ?? 8B 36 8D 4F ?? C6 06 ?? E8 ?? ?? ?? ?? C7 07 ?? ?? ?? ?? 5F 5E 5B C3 83 E9"));
-//
-//	Destructor(this);
-//}
-
 using SendNetMsg_t = bool(__thiscall*)(INetChannel*, INetMessage&, bool, bool);
 
 namespace Hooked
@@ -80,6 +46,17 @@ namespace Hooked
 			else
 				cmd->buttons |= IN_DUCK;
 		}
+
+		if (auto net = Source::m_pEngine->GetNetChannelInfo(); net != nullptr)
+		{
+			cheat::main::latency = Source::m_pEngine->GetNetChannelInfo()->GetLatency(0);
+			cheat::main::latency += Source::m_pEngine->GetNetChannelInfo()->GetLatency(1);
+		}
+		else
+			cheat::main::latency = 0;
+
+		Source::m_pGlobalVars->curtime = TICKS_TO_TIME(cheat::main::local()->m_nTickBase());
+		Source::m_pGlobalVars->frametime = Source::m_pPrediction->m_bEnginePaused ? 0.f : Source::m_pGlobalVars->interval_per_tick;
 
 		movement->Begin(cmd, send_packet);
 
@@ -119,20 +96,6 @@ namespace Hooked
 
 		if (valid)
 		{
-			//if (cheat::game::pressed_keys[VK_END]) 
-			//{
-			//	auto NetChannel = *reinterpret_cast<INetChannel**>(reinterpret_cast<uintptr_t>(Source::m_pClientState) + 0x9C);
-			//
-			//	if (NetChannel) {
-			//		NET_SignonState* a = new NET_SignonState(6, Source::m_pClientState->m_nServerCount);
-			//
-			//		for (int i = 0; i < 1000; i++)
-			//			NetChannel->SendNetMsg(a, false, true);
-			//
-			//		delete(a);
-			//	}
-			//}
-
 			cheat::game::last_cmd = cmd;
 
 			auto weapon = (C_WeaponCSBaseGun*)(Source::m_pEntList->GetClientEntityFromHandle(cheat::main::local()->m_hActiveWeapon()));

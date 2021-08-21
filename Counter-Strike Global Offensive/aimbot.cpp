@@ -899,14 +899,14 @@ void c_aimbot::visualise_hitboxes(C_BasePlayer* entity, matrix3x4_t *mx, Color c
 
 void c_aimbot::autostop(CUserCmd* cmd, bool &send_packet, C_WeaponCSBaseGun* local_weapon/*, C_BasePlayer* best_player, float dmg, bool hitchanced*/)
 {
-	static auto accel = Source::m_pCvar->FindVar("sv_accelerate");
+	static auto sv_accelerate = Source::m_pCvar->FindVar("sv_accelerate");
+	static auto sv_stopspeed = Source::m_pCvar->FindVar("sv_stopspeed");
+	static auto sv_friction = Source::m_pCvar->FindVar("sv_friction");
 
 	if ((int)cheat::Cvars.RageBot_AutoStop.GetValue() == 0)
 		return;
 
 	static bool was_onground = cheat::main::local()->m_fFlags() & FL_ONGROUND;
-
-	//auto should_stop = (!best_player && !hitchanced && dmg == 1337.f) || ((int)cheat::Cvars.RageBot_AutoStop.GetValue() == 3 || (best_player && dmg >= best_player->m_iHealth() && (int)cheat::Cvars.RageBot_AutoStop.GetValue() == 1) || (!hitchanced && (int)cheat::Cvars.RageBot_AutoStop.GetValue() == 2));
 
 	if (cheat::main::fast_autostop && local_weapon && local_weapon->GetCSWeaponData() && was_onground && cheat::main::local()->m_fFlags() & FL_ONGROUND)
 	{
@@ -921,91 +921,40 @@ void c_aimbot::autostop(CUserCmd* cmd, bool &send_packet, C_WeaponCSBaseGun* loc
 		else
 			maxspeed = *(float*)(uintptr_t(local_weapon->GetCSWeaponData()) + 0x0130);//local_weapon->GetCSWeaponData()->max_speed;
 
-		maxspeed *= 0.31f;
+		maxspeed *= 0.33f;
+		maxspeed -= 1.f;
 
-		float max_accelspeed = accel->GetFloat() * Source::m_pGlobalVars->interval_per_tick * local_weapon->GetMaxWeaponSpeed() * cheat::main::local()->m_surfaceFriction();
-
-		cmd->buttons |= IN_SPEED;
-
-		auto pred_velocity = velocity + velocity * Source::m_pGlobalVars->interval_per_tick;
+		auto v58 = sv_stopspeed->GetFloat();
+		v58 = fmaxf(v58, velocity.Length2D());
+		v58 = sv_friction->GetFloat() * v58;
+		auto slow_walked_speed = fmaxf(velocity.Length2D() - (v58 * Source::m_pGlobalVars->interval_per_tick), 0.0f);
 
 		switch ((int)cheat::Cvars.RageBot_AutoStopMethod.GetValue())
 		{
 		case 0:
 		{
-			if ((max(pred_velocity.Length2D(), velocity.Length2D()) + 1.f) > maxspeed)
+			if (velocity.Length2D() <= slow_walked_speed)
 			{
-				//	cmd->buttons |= IN_WALK;
-				//Engine::Movement::Instance()->quick_stop(cmd);
+				cmd->buttons &= ~IN_SPEED;
 
-				if ((maxspeed + 1.0f) <= max(pred_velocity.Length2D(), velocity.Length2D()))
-				{
-					cmd->forwardmove = 0.0f;
-					cmd->sidemove = 0.0f;
-				}
-				else
-				{
-					cmd->sidemove = (maxspeed * (cmd->sidemove / lol));
-					cmd->forwardmove = (maxspeed * (cmd->forwardmove / lol));
-				}
+				cmd->sidemove = (maxspeed * (cmd->sidemove / lol));
+				cmd->forwardmove = (maxspeed * (cmd->forwardmove / lol));
 			}
-
-			if ((max(pred_velocity.Length2D(), velocity.Length2D()) + 1.5f) > maxspeed)
+			else
 			{
-				if (velocity.Length2D() - max_accelspeed <= -1.f) {
-					cmd->forwardmove = velocity.Length2D() / max_accelspeed;
-				}
-				else {
-					cmd->forwardmove = 450.0f;
-				}
-
-				cmd->sidemove = 0.0f;
-
-				float direction = atan2(velocity.y, velocity.x);
-				Engine::Movement::Instance()->m_qAnglesView.y = std::remainderf(ToDegrees(direction) + 180.0f, 360.0f);
+				Engine::Movement::Instance()->quick_stop(cmd);
 			}
 		}
 		break;
 		case 1:
 		{
-			if (cheat::main::local()->m_vecVelocity().Length2D() > (maxspeed * 0.29f))
-			{
-				//	cmd->buttons |= IN_WALK;
-				Engine::Movement::Instance()->quick_stop(cmd);
-
-				{
-					if (velocity.Length2D() - max_accelspeed <= -1.f) {
-						cmd->forwardmove = velocity.Length2D() / max_accelspeed;
-					}
-					else {
-						cmd->forwardmove = 450.0f;
-					}
-
-					cmd->sidemove = 0.0f;
-
-					float direction = atan2(velocity.y, velocity.x);
-					Engine::Movement::Instance()->m_qAnglesView.y = std::remainderf(ToDegrees(direction) + 180.0f, 360.0f);
-				}
-			}
+			cheat::main::fakewalking = true;
+			cheat::main::skip_shot = cmd->command_number;
 		}
 		break;
 		case 2:
 		{
 			Engine::Movement::Instance()->quick_stop(cmd);
-
-			{
-				if (velocity.Length2D() - max_accelspeed <= -1.f) {
-					cmd->forwardmove = velocity.Length2D() / max_accelspeed;
-				}
-				else {
-					cmd->forwardmove = 450.0f;
-				}
-
-				cmd->sidemove = 0.0f;
-
-				float direction = atan2(velocity.y, velocity.x);
-				Engine::Movement::Instance()->m_qAnglesView.y = std::remainderf(ToDegrees(direction) + 180.0f, 360.0f);
-			}
 		}
 		break;
 		}
@@ -1299,130 +1248,41 @@ bool c_aimbot::work(CUserCmd* cmd, bool &send_packet)
 		}
 	}
 
-	//if (m_entities.empty()) {
-	//	for (auto idx = 0; idx < 64; idx++)
-	//	{
-	//		auto entity = (C_BasePlayer*)Source::m_pEntList->GetClientEntity(idx);
-	//
-	//		if (!entity ||
-	//			!entity->IsPlayer() ||
-	//			entity->IsDormant() ||
-	//			entity->m_iHealth() <= 0 ||
-	//			entity->m_iTeamNum() == cheat::main::local()->m_iTeamNum() ||
-	//			entity->m_bGunGameImmunity()
-	//			) continue;
-	//
-	//		m_entities.push_back(TargetListing_t(entity));
-	//
-	//		auto resolve_info = &cheat::features::aaa.player_resolver_records[entity->entindex() - 1];
-	//
-	//		resolve_info->freestanding_record.reset();
-	//
-	//		const float height = Source::m_pGameMovement->GetPlayerViewOffset((entity->m_flDuckAmount() > 0.8f)).z;
-	//
-	//		Vector direction_1, direction_2;
-	//		Math::AngleVectors(Vector(0.f, Math::CalcAngle(cheat::main::local()->m_vecOrigin(), entity->m_vecOrigin()).y - 90.f, 0.f), &direction_1);
-	//		Math::AngleVectors(Vector(0.f, Math::CalcAngle(cheat::main::local()->m_vecOrigin(), entity->m_vecOrigin()).y + 90.f, 0.f), &direction_2);
-	//
-	//		auto left_eye_pos = entity->m_vecOrigin() + Vector(0, 0, height) + (direction_1 * 16.f);
-	//		auto right_eye_pos = entity->m_vecOrigin() + Vector(0, 0, height) + (direction_2 * 16.f);
-	//
-	//		resolve_info->freestanding_record.left_damage = check_wall(local_weapon, left_eye_pos, entity);   //cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), left_eye_pos, cheat::main::local(), entity,0);
-	//		resolve_info->freestanding_record.right_damage = check_wall(local_weapon, right_eye_pos, entity); //cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), right_eye_pos, cheat::main::local(), entity,0);
-	//
-	//		Ray_t ray;
-	//		trace_t trace;
-	//		CTraceFilterWorldOnly filter;
-	//
-	//		filter.pSkip = cheat::main::local();
-	//
-	//		ray.Init(cheat::main::local()->GetEyePosition(), left_eye_pos);
-	//		Source::m_pEngineTrace->TraceRay(ray, MASK_ALL, &filter, &trace);
-	//		resolve_info->freestanding_record.left_fraction = trace.fraction;
-	//
-	//		ray.Init(cheat::main::local()->GetEyePosition(), right_eye_pos);
-	//		Source::m_pEngineTrace->TraceRay(ray, MASK_ALL, &filter, &trace);
-	//		resolve_info->freestanding_record.right_fraction = trace.fraction;
-	//	}
-	//
-	//	std::sort(m_entities.begin(), m_entities.end(), [&](const TargetListing_t& a, const TargetListing_t& b)
-	//	{
-	//		if (cheat::Cvars.RageBot_TargetSelection.GetValue() == 0)
-	//			return (a.hp < b.hp);
-	//		else if (cheat::Cvars.RageBot_TargetSelection.GetValue() == 1)
-	//			return (a.distance < b.distance);
-	//		else
-	//			return (a.screen_distance < b.screen_distance);
-	//
-	//		return false;
-	//	}
-	//	);
-	//}
-
-	//if (m_entities.empty())
-	//	return false;
-
 	auto is_zeus = (local_weapon->m_iItemDefinitionIndex() == weapon_taser);
-
-	//cheat::features::lagcomp.start_position_adjustment();
 
 	static int hitboxesLoop[] =
 	{
-		HITBOX_HEAD,
-		HITBOX_NECK,
-		HITBOX_PELVIS,
-		HITBOX_BODY,
-		HITBOX_THORAX,
-		HITBOX_CHEST,
+		HITBOX_STOMACH,
+		HITBOX_LOWER_CHEST,
 		HITBOX_UPPER_CHEST,
+		HITBOX_HEAD,
+		HITBOX_CHEST,
 		HITBOX_RIGHT_THIGH,
 		HITBOX_LEFT_THIGH,
 		HITBOX_RIGHT_CALF,
 		HITBOX_LEFT_CALF,
 		HITBOX_RIGHT_FOOT,
 		HITBOX_LEFT_FOOT,
-		HITBOX_RIGHT_HAND,
-		HITBOX_LEFT_HAND,
 		HITBOX_RIGHT_UPPER_ARM,
-		HITBOX_RIGHT_FOREARM,
 		HITBOX_LEFT_UPPER_ARM,
+		HITBOX_RIGHT_FOREARM,
 		HITBOX_LEFT_FOREARM
 	};
 
 	auto skip_hitscan = (cheat::Cvars.RageBot_Hitboxes.GetValue() == 0);
 
-	for (auto k = 1; k < 64; k++)
+	for (auto k = 1; k <= 64; k++)
 	{
 		auto entity = (C_BasePlayer*)Source::m_pEntList->GetClientEntity(k);
 
-		if (!entity ||
-			!entity->IsPlayer() ||
-			!entity->GetClientClass()) 
-		{
-			if (cheat::features::lagcomp.records[k - 1].tick_count != -1)
-				cheat::features::lagcomp.records[k - 1].reset(true);
-
+		if (!entity 
+			|| !entity->IsPlayer() 
+			|| !entity->GetClientClass() 
+			|| entity->IsDormant()
+			|| entity->m_iHealth() <= 0
+			|| entity->m_iTeamNum() == cheat::main::local()->m_iTeamNum() 
+			|| entity->m_bGunGameImmunity()) 
 			continue;
-		}
-
-		if (entity->IsDead() && cheat::main::shots_total[k - 1] != 0 && entity->m_iTeamNum() != cheat::main::local()->m_iTeamNum())
-		{
-			cheat::main::shots_fired[k - 1] = 0;
-			cheat::main::shots_total[k - 1] = 0;
-			memset(cheat::features::aaa.player_resolver_records[k - 1].missed_shots, 0, sizeof(int) * 11);
-		}
-
-		if (entity->IsDormant() ||
-			entity->m_iHealth() <= 0 ||
-			entity->m_iTeamNum() == cheat::main::local()->m_iTeamNum() ||
-			entity->m_bGunGameImmunity()
-			) 
-		{
-			if (cheat::features::lagcomp.records[k - 1].tick_count != -1)
-				cheat::features::lagcomp.records[k - 1].reset((entity->IsDormant() && entity->m_iHealth() <= 0));
-
-			continue;
-		}
 
 		auto idx = entity->entindex();
 
@@ -1435,210 +1295,38 @@ bool c_aimbot::work(CUserCmd* cmd, bool &send_packet)
 		auto resolve_info = &cheat::features::aaa.player_resolver_records[idx - 1];
 
 		int loopsize = ARRAYSIZE(hitboxesLoop) - 1;
-
-		resolve_info->freestanding_record.reset();
-
-		if (Source::m_pClientState->m_iDeltaTick > 0 && cheat::main::local())
-		{
-			const float height = Source::m_pGameMovement->GetPlayerViewOffset((entity->m_flDuckAmount() > 0.8f)).z;
-
-			Vector direction_1, direction_2;
-			Math::AngleVectors(Vector(0.f, Math::CalcAngle(cheat::main::local()->m_vecOrigin(), entity->m_vecOrigin()).y - 90.f, 0.f), &direction_1);
-			Math::AngleVectors(Vector(0.f, Math::CalcAngle(cheat::main::local()->m_vecOrigin(), entity->m_vecOrigin()).y + 90.f, 0.f), &direction_2);
-
-			auto left_eye_pos = (entity->m_vecOrigin() + entity->m_vecVelocity() * Source::m_pGlobalVars->interval_per_tick) + Vector(0, 0, height) + (direction_1 * 16.f);
-			auto right_eye_pos = (entity->m_vecOrigin() + entity->m_vecVelocity() * Source::m_pGlobalVars->interval_per_tick) + Vector(0, 0, height) + (direction_2 * 16.f);
-
-			Vector anglesr, directionr;
-			Vector tmpr = right_eye_pos - cheat::main::local()->predicted_eyepos();
-
-			Math::VectorAngles(tmpr, anglesr);
-			Math::AngleVectors(anglesr, &directionr);
-			directionr.Normalize();
-
-			Vector anglesl, directionl;
-			Vector tmpl = left_eye_pos - cheat::main::local()->predicted_eyepos();
-
-			Math::VectorAngles(tmpl, anglesl);
-			Math::AngleVectors(anglesl, &directionl);
-			directionl.Normalize();
-
-			//Source::m_pDebugOverlay->AddBoxOverlay(left_eye_pos,Vector(-5.f,-5.f,-5.f), Vector(5.f, 5.f, 5.f), Vector(0,0,0), 255, 0, 0, 150, Source::m_pGlobalVars->interval_per_tick * 2.f);
-			//Source::m_pDebugOverlay->AddBoxOverlay(right_eye_pos, Vector(-5.f, -5.f, -5.f), Vector(5.f, 5.f, 5.f), Vector(0, 0, 0), 0, 255, 0, 150, Source::m_pGlobalVars->interval_per_tick * 2.f);
-
-			resolve_info->freestanding_record.left_damage = cheat::features::aimbot.check_wall(cheat::main::local()->get_weapon(), cheat::main::local()->predicted_eyepos(), directionl, entity);   //cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), left_eye_pos, cheat::main::local(), entity,0);
-			resolve_info->freestanding_record.right_damage = cheat::features::aimbot.check_wall(cheat::main::local()->get_weapon(), cheat::main::local()->predicted_eyepos(), directionr, entity); //cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), right_eye_pos, cheat::main::local(), entity,0);
-
-			Ray_t ray;
-			trace_t trace;
-			CTraceFilterWorldOnly filter;
-
-			filter.pSkip = cheat::main::local();
-
-			ray.Init(cheat::main::local()->predicted_eyepos(), left_eye_pos);
-			Source::m_pEngineTrace->TraceRay(ray, MASK_ALL, &filter, &trace);
-			resolve_info->freestanding_record.left_fraction = trace.fraction;
-
-			ray.Init(cheat::main::local()->predicted_eyepos(), right_eye_pos);
-			Source::m_pEngineTrace->TraceRay(ray, MASK_ALL, &filter, &trace);
-			resolve_info->freestanding_record.right_fraction = trace.fraction;
-		}
-
-		//auto mx = cheat::features::lagcomp.records[idx - 1].matrix;
-		//auto backtrack_matrix_is_valid = cheat::features::lagcomp.records[idx - 1].matrix_valid;
 		float maxRange = local_weapon->GetCSWeaponData()->range;
 		auto hp = entity->m_iHealth();
 
 		auto player_record = &cheat::features::lagcomp.records[idx - 1];
-
-		player_record->restore_record.data_filled = false;
-		cheat::features::lagcomp.store_record_data(entity, &player_record->restore_record);
-		 
-		if (cheat::Cvars.RageBot_AdjustPositions.GetValue() && player_record->m_Tickrecords.size() > 1)
-		{
-			player_record->being_lag_compensated = true;
-			cheat::features::lagcomp.start_position_adjustment(entity);
-			player_record->being_lag_compensated = false;
-		}
-
 		auto distance = entity->m_vecOrigin().Distance(cheat::main::local()->m_vecOrigin());
 
-		if (distance >= maxRange) {
-			cheat::features::lagcomp.finish_position_adjustment(entity);
+		if (distance >= maxRange)
 			continue;
-		}
 
-		//piska++;
-
-		float pelvis_damage = 0.f;
-		float stomach_damage = 0.f;
-		float head_damage = 0.f;
-
-		if (!skip_hitscan)
+		for (auto i = 0; i <= loopsize; i++)
 		{
-			auto hitbox_pelvis = get_hitbox(entity, HITBOX_BODY, entity->m_CachedBoneData().Base());
-			pelvis_damage = can_hit(HITBOX_BODY, entity, hitbox_pelvis, entity->m_CachedBoneData().Base());
+			const auto& ihitbox = hitboxesLoop[i];
 
-			auto hitbox_stomach = get_hitbox(entity, HITBOX_THORAX, entity->m_CachedBoneData().Base());
-			stomach_damage = can_hit(HITBOX_THORAX, entity, hitbox_stomach, entity->m_CachedBoneData().Base());
+			if (!skip_hitscan && (!cheat::Cvars.RageBot_Hitboxes.Has(0) && ihitbox == HITBOX_HEAD ||
+				(!cheat::Cvars.RageBot_Hitboxes.Has(1) && ihitbox >= HITBOX_PELVIS && ihitbox <= HITBOX_UPPER_CHEST) ||
+				(!cheat::Cvars.RageBot_Hitboxes.Has(2) && ihitbox >= HITBOX_RIGHT_HAND && ihitbox <= HITBOX_LEFT_FOREARM) ||
+				(!cheat::Cvars.RageBot_Hitboxes.Has(3) && ihitbox >= HITBOX_RIGHT_THIGH && ihitbox <= HITBOX_LEFT_CALF) ||
+				(!cheat::Cvars.RageBot_Hitboxes.Has(4) && ihitbox >= HITBOX_RIGHT_FOOT && ihitbox <= HITBOX_LEFT_FOOT)))
+				continue;
 
-			auto hitbox_head = get_hitbox(entity, 0, entity->m_CachedBoneData().Base());
-			head_damage = can_hit(0, entity, hitbox_head, entity->m_CachedBoneData().Base());
-		}
-		else
-			loopsize = 1;
+			auto hitbox = get_hitbox(entity, hitboxesLoop[i], entity->m_CachedBoneData().Base());
 
-		if (is_zeus)
-			loopsize = 5;
-
-		const float at_target_yaw = Math::CalcAngle(cheat::main::local()->m_vecOrigin(), entity->m_vecOrigin()).y + 180.f;
-
-		auto baim = ((cheat::Cvars.RageBot_bodyaim.Has(0) && !cheat::features::aaa.compare_delta(fabs(at_target_yaw + 90.f), fabs(animstate->eye_yaw), 60.f)) ||
-			(cheat::Cvars.RageBot_bodyaim.Has(1) && (pelvis_damage > hp || stomach_damage > hp/* || hp < 50.f*/)) ||
-			(cheat::Cvars.RageBot_bodyaim.Has(2) && !(entity->m_fFlags() & FL_ONGROUND || animstate->on_ground)));
-
-		auto headaim = ((cheat::Cvars.RageBot_allow_head.Has(0) && cheat::features::aaa.compare_delta(fabs(at_target_yaw + 90.f), fabs(animstate->eye_yaw), 60.f)) 
-			|| (cheat::Cvars.RageBot_allow_head.Has(1) && cheat::features::lagcomp.records[idx - 1].type == RECORD_SHOT && (entity->m_fFlags() & FL_ONGROUND))
-			|| (cheat::Cvars.RageBot_allow_head.Has(2) && animstate->speed_2d > 0.1f && (entity->m_fFlags() & FL_ONGROUND)));
-
-		auto xshots = (cheat::main::shots_total[idx - 1] >= (int)cheat::Cvars.RageBot_Baim_AfterXshots.GetValue() && (int)cheat::Cvars.RageBot_Baim_AfterXshots.GetValue() != 0);
-
-		auto priority = (baim ? HITBOX_BODY : HITBOX_HEAD);
-
-		/*if (entity->m_vecVelocity().Length2D() < 1.f && baim && pelvis_damage <= 0.f && stomach_damage <= 0.f && cheat::Cvars.RageBot_allow_head.Has(0) && (head_damage > max_damage || (head_damage > hp && cheat::Cvars.RageBot_ScaledmgOnHp.GetValue()))) {
-			baim = false;
-			headaim = true;
-		}*/
-
-		if (headaim)
-			priority = HITBOX_HEAD;
-
-		if (xshots || is_zeus)
-			priority = HITBOX_BODY;
-
-		if ((int)cheat::Cvars.Ragebot_headaim_only_on_shot.GetValue())
-			priority = (cheat::features::lagcomp.records[idx - 1].type == RECORD_SHOT && head_damage > hp) ? HITBOX_HEAD : HITBOX_BODY;
-
-		auto phitbox = get_hitbox(entity, priority, entity->m_CachedBoneData().Base());
-		auto pdmg = can_hit(priority, entity, phitbox, entity->m_CachedBoneData().Base());
-
-		if (!phitbox.IsZero() && (pdmg > max_damage || (pdmg > hp && cheat::Cvars.RageBot_ScaledmgOnHp.GetValue())))
-		{
-			max_damage = pdmg;
-			best_player = entity;
-			best_hitbox = phitbox;
-			best_hitboxid = priority;
-			//break;
-		}
-		else
-		{
-			for (auto i = loopsize; i >= 0; --i)
+			if (!hitbox.IsZero())
 			{
-				if (cheat::Cvars.Ragebot_headaim_only_on_shot.GetValue() && cheat::features::lagcomp.records[idx - 1].type != RECORD_SHOT && hitboxesLoop[i] <= 1)
-					break;
+				auto dmg = can_hit(hitboxesLoop[i], entity, hitbox, entity->m_CachedBoneData().Base());
 
-				if ((skip_hitscan || !headaim) && hitboxesLoop[i] <= 1)
-					break;
-
-				if (!skip_hitscan && (!cheat::Cvars.RageBot_Hitboxes.Has(0) && hitboxesLoop[i] == HITBOX_HEAD ||
-					(!cheat::Cvars.RageBot_Hitboxes.Has(1) && hitboxesLoop[i] >= HITBOX_PELVIS && hitboxesLoop[i] <= HITBOX_UPPER_CHEST) ||
-					(!cheat::Cvars.RageBot_Hitboxes.Has(2) && hitboxesLoop[i] >= HITBOX_RIGHT_HAND && hitboxesLoop[i] <= HITBOX_LEFT_FOREARM) ||
-					(!cheat::Cvars.RageBot_Hitboxes.Has(3) && hitboxesLoop[i] >= HITBOX_RIGHT_THIGH && hitboxesLoop[i] <= HITBOX_LEFT_CALF) ||
-					(!cheat::Cvars.RageBot_Hitboxes.Has(4) && hitboxesLoop[i] >= HITBOX_RIGHT_FOOT && hitboxesLoop[i] <= HITBOX_LEFT_FOOT)))
-					continue;
-
-				if (is_zeus && (hitboxesLoop[i] <= 1 || ((stomach_damage > 0.f || pelvis_damage > 0.f) && (hitboxesLoop[i] == 11 || hitboxesLoop[i] == 12))))
-					break;
-
-				if ((baim || xshots) && !((pelvis_damage <= 0.f || stomach_damage <= 0.f) && head_damage > 0.f) && hitboxesLoop[i] <= 1)
-					break;
-
-				auto hitbox = get_hitbox(entity, hitboxesLoop[i], entity->m_CachedBoneData().Base());
-
-				if (!hitbox.IsZero())
+				if (dmg > max_damage || (dmg > hp && cheat::Cvars.RageBot_ScaledmgOnHp.GetValue()))
 				{
-					auto dmg = can_hit(hitboxesLoop[i], entity, hitbox, entity->m_CachedBoneData().Base());
-
-					if (dmg > max_damage || (dmg > hp && cheat::Cvars.RageBot_ScaledmgOnHp.GetValue()))
-					{
-						max_damage = dmg;
-						best_player = entity;
-						best_hitbox = hitbox;
-						best_hitboxid = hitboxesLoop[i];
-					}
-				}
-			}
-		}
-
-		if (best_player == nullptr || best_hitbox.IsZero())
-			cheat::features::lagcomp.finish_position_adjustment(entity);
-		else
-			break;
-	}
-
-	float max_dmg = 1.f;
-
-	if (best_player && best_hitboxid >= 0 && best_player->get_multipoints(best_hitboxid, cheat::main::points[best_player->entindex() - 1][best_hitboxid], best_player->m_CachedBoneData().Base()))
-	{
-		best_hitbox.clear();
-
-		auto points = cheat::main::points[best_player->entindex() - 1][best_hitboxid];
-		auto cwall = cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), points.back(), cheat::main::local(), best_player, best_hitboxid);
-
-		if ((cwall >= best_player->m_iHealth() || (cwall * 2.f) >= best_player->m_iHealth()) && cheat::main::last_penetrated_count <= 1)
-			best_hitbox = points.back();
-		else
-		{
-			for (auto i = 0; i < points.size(); i++)
-			{
-				auto point = points[i];
-
-				auto dmg = cheat::features::autowall.CanHit(cheat::main::local()->GetEyePosition(), point, cheat::main::local(), best_player, best_hitboxid);
-
-				if (dmg > max_dmg)
-				{
-					max_dmg = dmg;
-					best_hitbox = point;
+					max_damage = dmg;
+					best_player = entity;
+					best_hitbox = hitbox;
+					best_hitboxid = hitboxesLoop[i];
 				}
 			}
 		}
@@ -1650,15 +1338,13 @@ bool c_aimbot::work(CUserCmd* cmd, bool &send_packet)
 
 	if (best_player != nullptr && !best_hitbox.IsZero())
 	{
-		memcpy(dolboeb, best_player->m_CachedBoneData().Base(), sizeof(matrix3x4_t)* best_player->GetBoneCount());
+		memcpy(dolboeb, best_player->m_CachedBoneData().Base(), sizeof(matrix3x4_t) * best_player->GetBoneCount());
 		aim_angles = Math::CalcAngle(cheat::main::local()->GetEyePosition(), best_hitbox);
 		aim_angles.Clamp();
 
 		hitchance = hit_chance(aim_angles, best_player, cheat::Cvars.RageBot_HitChance.GetValue());
 	}
-
-	//cheat::features::lagcomp.finish_position_adjustment();
-
+	
 	if (!best_player || best_hitbox.IsZero() || aim_angles.IsZero())
 		return false;
 
@@ -1674,10 +1360,9 @@ bool c_aimbot::work(CUserCmd* cmd, bool &send_packet)
 
 	const bool can_shoot = Source::m_pClientState->m_iChockedCommands > 0 && Source::m_pClientState->m_iChockedCommands <= 14 || cheat::Cvars.RageBot_SilentAim.GetValue() != 2;
 
-	if (local_weapon->can_shoot() && (cheat::Cvars.RageBot_AutoFire.GetValue() || (cheat::game::pressed_keys[(int)cheat::Cvars.RageBot_Key.GetValue()] && (int)cheat::Cvars.RageBot_Key.GetValue() != 0)))
+	if (local_weapon->can_shoot() && cheat::main::skip_shot && (cheat::Cvars.RageBot_AutoFire.GetValue() || (cheat::game::pressed_keys[(int)cheat::Cvars.RageBot_Key.GetValue()] && (int)cheat::Cvars.RageBot_Key.GetValue() != 0)))
 	{
-		if (!cheat::main::fakewalking)
-			cheat::main::fast_autostop = ((int)cheat::Cvars.RageBot_AutoStop.GetValue() == 3 || (best_player && max_dmg >= best_player->m_iHealth() && (int)cheat::Cvars.RageBot_AutoStop.GetValue() == 1) || (!hitchance && (int)cheat::Cvars.RageBot_AutoStop.GetValue() == 2));
+		cheat::main::fast_autostop = (int)cheat::Cvars.RageBot_AutoStop.GetValue()>0;
 		
 		tick_record = cheat::features::lagcomp.records[entity_index].tick_count;
 
@@ -1703,16 +1388,14 @@ bool c_aimbot::work(CUserCmd* cmd, bool &send_packet)
 			cheat::main::shots_total[entity_index]++;
 			cheat::features::aaa.player_resolver_records[entity_index].missed_shots[cheat::features::aaa.player_resolver_records[entity_index].resolving_method]++;
 
-			if (cheat::Cvars.RageBot_SilentAim.GetValue() == 2) {
+			if (cheat::Cvars.RageBot_SilentAim.GetValue() == 2)
 				send_packet = false;
-				//cheat::features::antiaimbot.skip_lags_this_tick = true;
-			}
 
 			visualise_hitboxes(best_player, dolboeb, Color::Red(), 4);
 
-			if (auto net = Source::m_pEngine->GetNetChannelInfo(); net != nullptr && (cheat::features::lagcomp.records[entity_index].m_Tickrecords.size() > cheat::features::lagcomp.records[entity_index].backtrack_ticks && cheat::features::lagcomp.records[entity_index].m_Tickrecords.size() > 1)) {
+			if (auto net = Source::m_pEngine->GetNetChannelInfo(); net != nullptr && (cheat::features::lagcomp.records[entity_index].tick_records.size() > cheat::features::lagcomp.records[entity_index].backtrack_ticks && cheat::features::lagcomp.records[entity_index].tick_records.size() > 1)) {
 				auto impact_time = Source::m_pGlobalVars->curtime /*- net->GetLatency(FLOW_INCOMING) - net->GetLatency(FLOW_OUTGOING)*/ + /*Source::m_pGlobalVars->interval_per_tick*/net->GetLatency(MAX_FLOWS);
-				cheat::main::fired_shot.push_back(_shotinfo(best_player, dolboeb, cheat::main::local()->GetEyePosition(), best_hitbox, &cheat::features::lagcomp.records[entity_index], cheat::features::lagcomp.records[entity_index].m_Tickrecords.at(cheat::features::lagcomp.records[entity_index].backtrack_ticks), best_hitboxid, impact_time, local_weapon->GetSpread()));
+				cheat::main::fired_shot.push_back(_shotinfo(best_player, dolboeb, cheat::main::local()->GetEyePosition(), best_hitbox, &cheat::features::lagcomp.records[entity_index], cheat::features::lagcomp.records[entity_index].tick_records.at(cheat::features::lagcomp.records[entity_index].backtrack_ticks), best_hitboxid, impact_time, local_weapon->GetSpread()));
 			}
 
 			if (!cheat::Cvars.RageBot_SilentAim.GetValue())

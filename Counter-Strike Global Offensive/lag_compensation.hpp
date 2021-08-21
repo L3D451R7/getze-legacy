@@ -8,18 +8,20 @@
 #define TICKS_TO_TIME( t )  ( Source::m_pGlobalVars->interval_per_tick * ( t ) )
 #define ROUND_TO_TICKS( t ) ( Source::m_pGlobalVars->interval_per_tick * TIME_TO_TICKS( t ) )
 
-enum TickrecordType
+enum tickRecordPriority : int
 {
-	RECORD_NONE = -1,
 	RECORD_NORMAL = 0,
-	RECORD_SHOT = 1,
-	RECORD_PRIORITY = 2
+	RECORD_LBY_PREDICTION = 1,
+	RECORD_LBY_UPDATE = 2,
+	RECORD_UNCHOKE = 3,
+	RECORD_NON_CHOKED_SHOT = 4,
+	RECORD_MOVING = 5,
 };
 
 class C_Tickrecord
 {
 public:
-	explicit C_Tickrecord() : sequence(0), entity_flags(0), simulation_time(0), lower_body_yaw(0), cycle(0), type(0)
+	explicit C_Tickrecord() : entity_flags(0), animated(false), simulation_time(0), lower_body_yaw(0), type(0)
 	{
 	}
 
@@ -42,35 +44,33 @@ public:
 		abs_origin.clear();
 		object_mins.clear();
 		object_maxs.clear();
-		hitbox_positon.clear();
 		anim_velocity.clear();
-		force.clear();
 
 		eye_angles.clear();
 		abs_eye_angles.clear();
 
-		sequence = 0;
 		entity_flags = 0;
-		tick_count = 0;
 		ientity_flags = 0;
 		bones_count = 0;
-		skin = 0;
-		body = 0;
+		servertick = 0;
 		resolver_method = 0;
 
 		simulation_time = 0.f;
 		lower_body_yaw = 0.f;
 		simulation_time_old = 0.f;
-		type = RECORD_NONE;
-		cycle = 0.f;
+		type = RECORD_NORMAL;
 		duck_amt = 0.f;
 		lby_delta = 0.f;
 
 		fill(begin(pose_paramaters), end(pose_paramaters), 0.f);
 		memset(anim_layers, 0, 56 * 14);
 
-		data_filled = shot_this_tick = dormant = false;
+		data_filled = shot_this_tick = dormant = animated = false;
 	}
+
+	matrix3x4_t matrixes[128];
+	C_AnimationLayer anim_layers[13];
+	std::array<float, 24> pose_paramaters;
 
 	Vector origin;
 	Vector abs_origin;
@@ -78,20 +78,17 @@ public:
 	Vector velocity;
 	Vector object_mins;
 	Vector object_maxs;
-	Vector hitbox_positon;
-	Vector force;
 
 	QAngle eye_angles;
 	QAngle abs_eye_angles;
 
-	int sequence;
 	int entity_flags;
 	int	ientity_flags;
-	int tick_count;
 	int bones_count;
-	int skin;
-	int body;
 	int resolver_method;
+
+	int type = RECORD_NORMAL;
+	int servertick = 0;
 
 	float lby_delta;
 	float duck_amt;
@@ -99,15 +96,9 @@ public:
 	float simulation_time_old;
 	float shot_time;
 	float lower_body_yaw;
-	float cycle;
-
-	std::array<float, 24> pose_paramaters;
-	C_AnimationLayer anim_layers[15];
-	matrix3x4_t matrixes[128];
-
-	int type = RECORD_NORMAL;
 
 	bool data_filled = false;
+	bool animated = false;
 	bool shot_this_tick = false;
 	bool dormant = true;
 };
@@ -127,10 +118,11 @@ public:
 	{
 	}
 
-	C_BasePlayer* entity;
-
 	Vector origin;
 	Vector velocity;
+
+	C_BasePlayer* entity;
+
 	float simtime;
 
 	bool on_ground;
@@ -142,38 +134,17 @@ public:
 class c_player_records
 {
 public:
-	std::deque<C_Tickrecord> m_Tickrecords;
-	//C_Tickrecord m_AnimationRecord;
-	bool being_lag_compensated;
-	int backtrack_ticks;
+	std::deque<C_Tickrecord> tick_records;
 	C_Tickrecord restore_record;
-	int tick_count;
-	int type;
-	matrix3x4_t matrix[128];
-	Vector hitbox_position;
+	C_Tickrecord* best_record = nullptr;
+	Vector last_render_origin;
 	bool matrix_valid = false;
 
 	void reset(bool sdox)
 	{
-		tick_count = -1;
-		hitbox_position.clear();
-		type = 0;
-
-		memset(matrix, 0, sizeof(matrix3x4_t) * 128);
-		//matrix[8].Invalidate();
 		matrix_valid = false;
-
-		being_lag_compensated = false;
-		backtrack_ticks = 0;
-
 		restore_record.reset();
-
-		//if (!m_Tickrecords.empty()) {
-			//auto front = m_Tickrecords.front();
-			m_Tickrecords.clear();
-			//if (!sdox)
-			//	m_Tickrecords.emplace_front(front);
-		//}
+		tick_records.clear();
 	}
 };
 
@@ -181,36 +152,20 @@ class c_lagcomp
 {
 public:
 	void get_interpolation();
-	void store_record_data(C_BasePlayer * entity, C_Tickrecord * record_data);
+	void store_record_data(C_BasePlayer * entity, C_Tickrecord * record_data, bool backup = false);
 	void apply_record_data(C_BasePlayer * entity, C_Tickrecord * record_data, bool backup = false);
 	bool extrapolate(C_BasePlayer * ent, const int ticks, C_Tickrecord * extrapolated_record);
-	void accelerate_velocity(C_BasePlayer * player, Vector & velocity, Vector new_velocity_angle, Vector old_velocity_angle);
 	bool is_time_delta_too_large(C_Tickrecord * wish_record);
-	bool is_time_delta_too_large(const float & simulation_time);
-	int start_lag_compensation(C_BasePlayer * entity, int wish_tick, C_Tickrecord * output_record);
 	void update_player_record_data(C_BasePlayer * entity);
+	C_Tickrecord* c_lagcomp::find_priority_record(c_player_records* log);
 	void start_position_adjustment();
-	//bool test_and_apply_record(C_BasePlayer * _entity, c_player_records * player_record, C_Tickrecord * restore_record, C_Tickrecord * corrected_record, int tick_count, int recordidx);
-	void start_position_adjustment(C_BasePlayer * entity);
-	void finish_position_adjustment();
-	void fix_netvar_compression(C_BasePlayer * player);
-	void fix_poses(C_BasePlayer* m_player);
+	void backup_players(bool restore = false);
 	void update_animations_data(C_BasePlayer * m_player);
-	void finish_position_adjustment(C_BasePlayer * entity);
-	void update_fake_animations();
 	void store_records();
+	bool can_backtrack_this_tick(C_Tickrecord* record, C_Tickrecord* previous, c_player_records* log);
 	void reset();
 
-	void set_interpolation_flags(C_BasePlayer* entity, int flag)
-	{
-		auto var_map = reinterpret_cast<uintptr_t>(entity) + 36; // tf2 = 20
-		auto var_map_list_count = *reinterpret_cast<int*>(var_map + 20);
-
-		for (auto index = 0; index < var_map_list_count; index++)
-			*reinterpret_cast<uintptr_t*>(*reinterpret_cast<uintptr_t*>(var_map) + index * 12) = flag;
-	}
-
-	c_player_records records[128];
+	c_player_records records[64];
 };
 
 struct _shotinfo

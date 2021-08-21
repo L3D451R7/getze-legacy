@@ -743,31 +743,11 @@ namespace Hooked
 
 		if (cheat::main::local() != nullptr && Source::m_pEngine->IsInGame() && Source::m_pClientState->m_iDeltaTick > 0)
 		{
-			if (stage == FRAME_NET_UPDATE_POSTDATAUPDATE_START)
+			if (stage == FRAME_NET_UPDATE_END) 
 			{
-				static auto old_velocity_modifier = cheat::main::local()->m_flVelocityModifier();
-				static float old_flNextCmdTime = 0.f;
-				static int old_iLastCommandAck = 0;
-
-				if (Source::m_pClientState)
-				{
-					auto v146 = Source::m_pClientState->m_iLastCommandAck;
-					auto v161 = Source::m_pClientState->m_flNextCmdTime;
-					if (old_flNextCmdTime != v161 || old_iLastCommandAck != v146)
-					{
-						auto v154 = cheat::main::local()->m_flVelocityModifier();
-						if (old_velocity_modifier != v154)
-						{
-							*(bool*)(uintptr_t(Source::m_pPrediction) + 0x24) = true;
-							old_velocity_modifier = v154;
-						}
-						old_flNextCmdTime = v161;
-						old_iLastCommandAck = v146;
-					}
-				}
-			}
-			if (stage == FRAME_NET_UPDATE_END)
+				Engine::Prediction::Instance()->DetectPredError();
 				cheat::features::lagcomp.store_records();
+			}
 		}
 	}
 

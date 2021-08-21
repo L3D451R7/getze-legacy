@@ -32,93 +32,43 @@ namespace Hooked
 		}
 	}
 
-	//// runcommand 
-	//float VelocityFix(int command_number, bool before) {
-	//	float velModifier = cheat::main::local()->m_flVelocityModifier();
-
-	//	if (cheat::main::last_velocity_modifier_tick == -1)
-	//		return cheat::main::local()->m_flVelocityModifier();
-
-	//	auto delta = command_number - cheat::main::last_velocity_modifier_tick - 1;
-
-	//	if (!before)
-	//		delta = command_number - cheat::main::last_velocity_modifier_tick;
-
-	//	const auto vel_mod_backup = cheat::main::last_velocity_modifier;
-
-	//	if (delta < 0 || vel_mod_backup == 1.0f) {
-	//		velModifier = cheat::main::local()->m_flVelocityModifier();
-	//	}
-	//	else if (delta) {
-	//		auto v6 = ((Source::m_pGlobalVars->interval_per_tick * 0.4f) * float(delta)) + vel_mod_backup;
-	//		if (v6 <= 1.0f) {
-	//			if (v6 >= 0.0f)
-	//				velModifier = v6;
-	//			else
-	//				velModifier = 0.0f;
-	//		}
-	//		else
-	//			velModifier = 1.0f;
-	//	}
-	//	else
-	//		velModifier = cheat::main::last_velocity_modifier;
-
-	//	return velModifier;
-	//}
+	int old_tickbase = 0;
 
 	void __fastcall RunCommand(void* ecx, void* edx, C_BasePlayer* player, CUserCmd* ucmd, IMoveHelper* moveHelper)
 	{
 		using Fn = void(__thiscall*)(void*, C_BasePlayer*, CUserCmd*, IMoveHelper*);
-		static int old_tickbase = 0;
 
-		if (cheat::main::local() != nullptr && player == cheat::main::local()) {
-			FixViewmodel(ucmd, true);
-			//cheat::main::local()->m_flVelocityModifier() = VelocityFix(ucmd->command_number, true);
+		if (!player || player->entindex() != Source::m_pEngine->GetLocalPlayer())
+			return Source::m_pPredictionSwap->VCall<Fn>(Index::IPrediction::RunCommand)(ecx, player, ucmd, moveHelper);;
 
-			if (cheat::main::can_store_netvars)
-			{
-				//Engine::Prediction::Instance()->FixNetvarCompression(true);
-				cheat::main::run_cmd_got_called = true;
-			}
+		Engine::Prediction::Instance()->RestoreNetvars(ucmd->command_number - 1);
 
-			cheat::main::last_velocity_modifier = cheat::main::local()->m_flVelocityModifier();
-		}
-
+		FixViewmodel(ucmd, true);
 		Source::m_pPredictionSwap->VCall<Fn>(Index::IPrediction::RunCommand)(ecx, player, ucmd, moveHelper);
+		FixViewmodel(ucmd, false);
 
-		if (cheat::main::local() != nullptr && player == cheat::main::local())
+		Engine::Prediction::Instance()->OnRunCommand(player, ucmd->command_number);
+
+		auto weapon = cheat::main::local()->get_weapon();
+		static float next_update_time = Source::m_pGlobalVars->interval_per_tick;
+
+		if (weapon != nullptr) 
 		{
-			cheat::main::local()->m_flVelocityModifier() = cheat::main::last_velocity_modifier;
-			//cheat::main::local()->m_flVelocityModifier() = VelocityFix(ucmd->command_number, false);
-			FixViewmodel(ucmd, false);
+			static int old_activity = weapon->m_Activity();
+			const auto tickbase = player->m_nTickBase() - 1;
+			auto activity = weapon->m_Activity();
 
-			if (cheat::main::can_store_netvars && cheat::main::last_frame_stage == 4)
-				cheat::main::last_netvars_update_tick = ucmd->command_number;
+			if (weapon->m_iItemDefinitionIndex() == 64 && !ucmd->hasbeenpredicted) {
 
-			const auto weapon = cheat::main::local()->get_weapon();
+				if (old_activity != activity && weapon->m_Activity() == 208)
+					old_tickbase = tickbase + 2;
 
-			static float next_update_time = Source::m_pGlobalVars->interval_per_tick;
-
-			if (weapon != nullptr) {
-				static int old_activity = weapon->m_Activity();
-				const auto tickbase = player->m_nTickBase() - 1;
-				auto activity = weapon->m_Activity();
-
-				if (weapon->m_iItemDefinitionIndex() == 64 && !ucmd->hasbeenpredicted) {
-
-					if (old_activity != activity && weapon->m_Activity() == 208)
-						old_tickbase = tickbase + 2;
-
-					if (weapon->m_Activity() == 208 && old_tickbase == tickbase)
-						weapon->m_flPostponeFireReadyTime() = TICKS_TO_TIME(tickbase) + 0.2f;
-				}
-
-				old_activity = activity;
+				if (weapon->m_Activity() == 208 && old_tickbase == tickbase)
+					weapon->m_flPostponeFireReadyTime() = TICKS_TO_TIME(tickbase) + 0.2f;
 			}
-		}
 
-		if (Source::m_pMoveHelper != moveHelper)
-			Source::m_pMoveHelper = moveHelper;
+			old_activity = activity;
+		}
 	}
 
 	bool __stdcall InPrediction()
@@ -149,11 +99,6 @@ namespace Hooked
 		//			ent->force_bone_rebuild();
 		//	}
 		//}
-		static auto MST = (void*)Memory::Scan(cheat::main::clientdll, "84 C0 74 17 8B 87");
-
-		if (_ReturnAddress() == MST) {
-			return true;
-		}
 
 		if (Source::m_pPredictionSwap)
 			return Source::m_pPredictionSwap->VCall<Fn>(Index::IPrediction::InPrediction)(Source::m_pPrediction);

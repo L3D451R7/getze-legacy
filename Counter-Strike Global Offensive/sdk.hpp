@@ -1260,32 +1260,7 @@ public:
 
 class IPrediction
 {
-//private:
-//	virtual void UnknownVirtual0() = 0;
-//	virtual void UnknownVirtual1() = 0;
-//	virtual void UnknownVirtual2() = 0;
-//	virtual void UnknownVirtual3() = 0;
-//	virtual void UnknownVirtual4() = 0;
-//	virtual void UnknownVirtual5() = 0;
-//	virtual void UnknownVirtual6() = 0;
-//	virtual void UnknownVirtual7() = 0;
-//	virtual void UnknownVirtual8() = 0;
-//	virtual void UnknownVirtual9() = 0;
-//	virtual void UnknownVirtual10() = 0;
-//	virtual void UnknownVirtual11() = 0;
-//public:
-//	virtual void GetLocalViewAngles(Vector& ang);// 12
-//	virtual void SetLocalViewAngles(Vector& ang);// 13
-//private:
-//	virtual void UnknownVirtual14() = 0;
-//	virtual void UnknownVirtual15() = 0;
-//	virtual void UnknownVirtual16() = 0;
-//	virtual void UnknownVirtual17() = 0;
-//	virtual void UnknownVirtual18() = 0;
 public:
-//	//virtual void RunCommand(C_BasePlayer *, CUserCmd *, IMoveHelper *) = 0;
-//	virtual void SetupMove(C_BasePlayer* player, CUserCmd* ucmd, IMoveHelper* pHelper, CMoveData* move) = 0; //20
-//	virtual void FinishMove(C_BasePlayer* player, CUserCmd* ucmd, CMoveData* move) = 0;
 
 	void Update(int startframe,            // World update ( un-modded ) most recently received
 		bool validframe,           // Is frame data valid
@@ -1343,6 +1318,28 @@ public:
 		typedef bool(__thiscall* oInPrediction)(void*);
 		return Memory::VCall<oInPrediction>(this, 14)(this);
 	}
+
+	int      m_hLastGround;
+	bool    m_bInPrediction;          // 0x0008
+	bool    m_bOldCLPredictValue;           // 0x0009
+	bool    m_bEnginePaused;          // 0x000A
+	int      m_nPreviousStartFrame;          // 0x000C
+	int      m_nIncomingPacketNumber;        // 0x0010 GetIncomingPacketNumber
+	float    m_flLastServerWorldTimeStamp;   // 0x0014
+	bool    m_bFirstTimePredicted;      // 0x0018
+	int      m_nCommandsPredicted;      // 0x001C
+	int      m_nServerCommandsAcknowledged;  // 0x0020
+	bool    m_bPreviousAckHadErrors;    // 0x0024
+	float    m_flIdealPitch;            // 0x0028
+	int      m_nLastCommandAcknowledged;          // 0x002C GetLastAcknowledgedCommandNumber
+	bool    m_bPreviousAckErrorTriggersFullLatchReset;    // 0x0024
+
+	int m_EntsWithPredictionErrorsInLastAck[5];
+	bool m_bPerformedTickShift;
+	int m_SavedVars[0x40 / 4];
+	bool m_bPlayerOriginTypedescriptionSearched;
+	int m_PlayerOriginTypeDescription[5];
+	void* m_pPDumpPanel;
 };
 
 class IMoveHelper
@@ -3480,9 +3477,10 @@ enum Hitboxes
 {
 	HITBOX_HEAD,
 	HITBOX_NECK,
+	HITBOX_LOWER_NECK,
 	HITBOX_PELVIS,
-	HITBOX_BODY,
-	HITBOX_THORAX,
+	HITBOX_STOMACH,
+	HITBOX_LOWER_CHEST,
 	HITBOX_CHEST,
 	HITBOX_UPPER_CHEST,
 	HITBOX_RIGHT_THIGH,
@@ -4536,6 +4534,16 @@ public:
 	float m_flCycle;
 	DWORD dword30;
 	DWORD dword34;
+};
+
+class C_AnimationLayerShort
+{
+public:
+	int m_nOrder;
+	int m_nSequence;
+	float m_flWeight;
+	float m_flPlaybackRate;
+	float m_flCycle;
 };
 
 class CCSGOPlayerAnimState
@@ -8489,6 +8497,7 @@ namespace cheat
 		extern bool fakewalking;
 		extern bool updating_skins;
 		extern int prev_fakelag_value;
+		extern int skip_shot;
 		extern int side;
 		extern int shots_fired[128];
 		extern int shots_total[128];
@@ -8515,6 +8524,7 @@ namespace cheat
 		extern int update_cycle;
 		extern int last_netvars_update_tick;
 		extern int last_frame_stage;
+		extern float latency;
 		extern float last_shot_time_clientside;
 		extern float real_angle;
 		extern float last_velocity_modifier;

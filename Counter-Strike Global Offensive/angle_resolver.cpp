@@ -19,10 +19,10 @@ bool c_resolver::has_fake(C_BasePlayer* entity)
 	auto index = entity->entindex() - 1;
 	auto player_lag_record = &cheat::features::lagcomp.records[index];
 
-	if (player_lag_record->m_Tickrecords.size() < 2)
+	if (player_lag_record->tick_records.size() < 2)
 		return true;
 
-	if (fabs(player_lag_record->m_Tickrecords.front().simulation_time - player_lag_record->m_Tickrecords.at(1).simulation_time) == Source::m_pGlobalVars->interval_per_tick)
+	if (fabs(player_lag_record->tick_records.front().simulation_time - player_lag_record->tick_records.at(1).simulation_time) == Source::m_pGlobalVars->interval_per_tick)
 		return false;
 
 	return true;
@@ -312,7 +312,7 @@ void c_resolver::resolve(C_BasePlayer* m_player, int &history, int &chocked_tick
 	auto idx = m_player->entindex() - 1;
 
 	auto lag_data = &player_resolver_records[idx];
-	auto history_data = cheat::features::lagcomp.records[idx].m_Tickrecords;
+	auto history_data = cheat::features::lagcomp.records[idx].tick_records;
 	
 	lag_data->resolved_yaw = state->abs_yaw;
 	lag_data->did_lby_flick = false;

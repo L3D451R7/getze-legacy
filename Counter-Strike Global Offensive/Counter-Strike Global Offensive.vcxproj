@@ -253,6 +253,7 @@
   <ItemGroup>
     <ClCompile Include="aimbot.cpp" />
     <ClCompile Include="angle_resolver.cpp" />
+    <ClCompile Include="animations.cpp" />
     <ClCompile Include="animation_state.cpp" />
     <ClCompile Include="anti_aimbot.cpp" />
     <ClCompile Include="autowall.cpp" />
@@ -299,6 +300,7 @@
   <ItemGroup>
     <ClInclude Include="aimbot.hpp" />
     <ClInclude Include="angle_resolver.hpp" />
+    <ClInclude Include="animations.hpp" />
     <ClInclude Include="animation_state.hpp" />
     <ClInclude Include="anti_aimbot.hpp" />
     <ClInclude Include="auto.hpp" />

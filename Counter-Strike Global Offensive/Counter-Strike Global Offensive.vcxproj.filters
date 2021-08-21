@@ -198,6 +198,7 @@
     <ClCompile Include="sound_parser.cpp">
       <Filter>engine\visuals</Filter>
     </ClCompile>
+    <ClCompile Include="animations.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="os.hpp">
@@ -339,5 +340,6 @@
       <Filter>engine\visuals</Filter>
     </ClInclude>
     <ClInclude Include="detours.h" />
+    <ClInclude Include="animations.hpp" />
   </ItemGroup>
 </Project>

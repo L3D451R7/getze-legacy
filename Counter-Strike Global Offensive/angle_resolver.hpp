@@ -77,7 +77,7 @@ public:
 		prev_lby = FLT_MAX;
 		move_lby = FLT_MAX;
 		saved_off_delta = FLT_MAX;
-		something = 0.f;
+		m_flLastNonShotPitch = 0.f;
 		pre_shot_pitch = FLT_MAX;
 		lby_deltas.clear();
 		origin.clear();
@@ -131,7 +131,7 @@ public:
 	C_AnimationLayer client_anim_layers[15];
 
 	C_AnimationLayer server_anim_layers[15];
-	AntiFreestandingRecord freestanding_record;
+	//AntiFreestandingRecord freestanding_record;
 	float last_shot_time = 0.0f;
 	float m_flServerTorso = 0.0f;
 
@@ -178,7 +178,7 @@ public:
 	bool is_balance_adjust_triggered, is_balance_adjust_playing;*/
 	bool did_lby_flick;
 	float next_lby_time;
-	float something;
+	float m_flLastNonShotPitch;
 	float prev_lby_time;
 	float prev_lby;
 	float move_lby;

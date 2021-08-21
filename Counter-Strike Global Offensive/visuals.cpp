@@ -2032,16 +2032,16 @@ void c_visuals::render(bool reset)
 			}
 			Drawing::DrawString(F::ESPInfo, x + w + 3, y + right++ * (size_info + 2), Color::White(dormant_alpha[idx] - 55.f), FONT_LEFT, "DS: %.5f", entity->m_flDuckSpeed());*/
 
-			if (!player_record->m_Tickrecords.empty() && !cheat::main::local()->IsDead())
+			if (!player_record->tick_records.empty() && !cheat::main::local()->IsDead())
 			{
-				if (cheat::Cvars.Visuals_enemies_flags.Has(1) && player_record->m_Tickrecords.front().type == RECORD_PRIORITY)
+				if (cheat::Cvars.Visuals_enemies_flags.Has(1) && player_record->tick_records.front().type == RECORD_PRIORITY)
 					Drawing::DrawString(F::ESPInfo, x + w + 3, y + right++ * size_info, Color(60, 160, 255, dormant_alpha[idx] - 55.f), FONT_LEFT, "vulnerable");
 
 
 				if (cheat::Cvars.Visuals_Skeleton.GetValue())
 				{
-					if (cheat::Cvars.Visuals_Skeleton.GetValue() == 2 && player_record->m_Tickrecords.size() > 2)
-						skeleton(entity, skeletonscolor.malpha(dormant_alpha[idx]), player_record->m_Tickrecords.at(player_record->m_Tickrecords.size() - 2).matrixes);
+					if (cheat::Cvars.Visuals_Skeleton.GetValue() == 2 && player_record->tick_records.size() > 2)
+						skeleton(entity, skeletonscolor.malpha(dormant_alpha[idx]), player_record->tick_records.at(player_record->tick_records.size() - 2).matrixes);
 					else
 						skeleton(entity, skeletonscolor.malpha(dormant_alpha[idx]), entity->m_CachedBoneData().Base());
 				}
