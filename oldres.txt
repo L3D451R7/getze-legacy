@@ -1,0 +1,157 @@
+	if (lag_data->is_using_static || (lag_data->missed_shots[1] < history && history > 2))
+		{
+			//right - 0.34f; left - -0.67f
+
+			/*if (freestand)
+			{
+			if (history % 2 == 1 && history > 0)
+			resolved_angle *= 1.f;
+
+			if (resolved_angle > 0.f)
+			step += lag_data->current_tick_max_delta * 0.67f;
+			else
+			step -= lag_data->current_tick_max_delta * 0.67f;
+
+			lag_data->resolving_method = 1;
+			}
+			else*/
+			float delta = Math::NormalizeYaw(lby - m_player->m_angEyeAngles().y);
+
+			if (state->speed_2d <= 0.1f && fabs(delta) > 0.000000001f)
+			{
+				static float prev_delta = 0;
+				if (std::fabsf(delta) < 180.f)
+				{
+					prev_delta = step = (delta < -0.00001f ? (lag_data->current_tick_max_delta * 0.67f) : -(lag_data->current_tick_max_delta * 0.67f));
+					lag_data->resolving_method = 1;
+				}
+				else
+					step = prev_delta;
+
+				if (freestand)
+				{
+					if (resolved_angle > 0.f && step > 0)
+						step *= -1.f;
+				}
+
+				if (lag_data->missed_shots[1] > 0 && lag_data->missed_shots[1] % 2 == 1)
+					step *= -1.f;
+			}
+			else
+			{
+				if (history % 2 == 0)
+					step += lag_data->current_tick_max_delta * 0.67f;
+				else
+					step -= lag_data->current_tick_max_delta * 0.67f;
+
+				lag_data->resolving_method = 2;
+			}
+		}
+		else
+		{
+			if (state->speed_2d <= 0.1f && lag_data->is_using_balance && !lag_data->is_jittering && lag_data->missed_shots[3] < 2)
+			{
+				lag_data->resolving_method = 3;
+
+				static float prev_delta = 0;
+				float delta = Math::NormalizeYaw(lby - m_player->m_angEyeAngles().y);
+				if (std::fabsf(delta) > 10.f)
+					prev_delta = step = (delta > -0.00001f ? lag_data->current_tick_max_delta : -lag_data->current_tick_max_delta);
+				else
+					step = prev_delta;
+
+				if (freestand)
+				{
+					if (resolved_angle > 0.f && step > 0)
+						step *= -1.f;
+				}
+
+				if (lag_data->missed_shots[3] > 0 && lag_data->missed_shots[3] % 2 == 1)
+					step *= -1.f;
+			}
+			else if (lag_data->is_jittering && fabs(lag_data->lby_delta) > 0.f)
+			{
+				if (state->speed_2d < 0.1f) {
+					//if (fabs(lag_data->lby_delta) < 60.f) {
+					step += lag_data->current_tick_max_delta;
+					start_angle = lby;
+
+					lag_data->previous_jitter_lby = lby;
+					//}
+					/*else
+					start_angle = lag_data->previous_jitter_lby;
+
+					if (history > 0 && history % 2 == 1)
+					step -= 90.f;*/
+
+					lag_data->resolving_method = 5;
+				}
+			}
+			/*if (freestand)
+			{
+			if (history % 2 == 1 && history > 0)
+			resolved_angle *= 1.f;
+
+			if (resolved_angle < 0.f)
+			step += lag_data->current_tick_max_delta;
+			else
+			step -= lag_data->current_tick_max_delta;
+
+			lag_data->resolving_method = 4;
+			}
+			else*/
+			else if (!lag_data->is_jittering)
+			{
+				lag_data->resolving_method = 6;
+
+				static float prev_delta = FLT_MAX;
+				float delta = Math::NormalizeYaw(lby - m_player->m_angEyeAngles().y);
+
+				auto spammed_alot = history % 3 > 1;
+
+				if (state->speed_2d <= 0.1f && std::fabsf(delta) > 0.00001f)
+				{
+					step = (delta > -0.00001f ? lag_data->current_tick_max_delta : -lag_data->current_tick_max_delta) * (spammed_alot ? 1.f : 0.67f);
+
+					if (freestand)
+					{
+						if (resolved_angle > 0.f && step > 0)
+							step *= -1.f;
+					}
+
+					if (lag_data->missed_shots[7] > 0 && lag_data->missed_shots[7] % 2 == 1)
+						step *= -1.f;
+
+					prev_delta = step;
+
+					lag_data->resolving_method = 7;
+				}
+				else
+				{
+					if (prev_delta == FLT_MAX) {
+
+						if (history % 2 == 0)
+							step += lag_data->current_tick_max_delta * (spammed_alot ? 1.f : 0.67f);
+						else
+							step -= lag_data->current_tick_max_delta * (spammed_alot ? 1.f : 0.67f);
+
+						lag_data->resolving_method = 8;
+					}
+					else {
+						step = prev_delta;
+
+						if (freestand)
+						{
+							if (resolved_angle > 0.f && step > 0)
+								step *= -1.f;
+						}
+
+						if (lag_data->missed_shots[7] > 0 && lag_data->missed_shots[7] % 2 == 1)
+							step *= -1.f;
+
+						lag_data->resolving_method = 7;
+					}
+				}
+			}
+		}
+	}
