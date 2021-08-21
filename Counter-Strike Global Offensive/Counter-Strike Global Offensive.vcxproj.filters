@@ -338,5 +338,6 @@
     <ClInclude Include="sound_parser.hpp">
       <Filter>engine\visuals</Filter>
     </ClInclude>
+    <ClInclude Include="detours.h" />
   </ItemGroup>
 </Project>

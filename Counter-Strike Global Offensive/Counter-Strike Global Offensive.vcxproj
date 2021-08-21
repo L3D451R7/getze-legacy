@@ -307,6 +307,7 @@
     <ClInclude Include="CUtlMemory.hpp" />
     <ClInclude Include="CUtlString.hpp" />
     <ClInclude Include="CUtlVector.hpp" />
+    <ClInclude Include="detours.h" />
     <ClInclude Include="displacement.hpp" />
     <ClInclude Include="entity.hpp" />
     <ClInclude Include="game_events.h" />
