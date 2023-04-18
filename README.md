@@ -6,4 +6,4 @@ i dont really wanna comment anything what goes on in the code, this project is a
 i tried to get it working in 2021 (cool getze-styled hack) and understood that fixing this cheat would not worth the timespend. 
 it required deep recode. 
 
-should've been releasing this years ago. Piece.
+should've been releasing this years ago. Peace.
