@@ -9,3 +9,5 @@ i tried to get it working in 2021 (because cool getze-styled h4x) when 2018 depo
 it required deep recode. 
 
 should've been releasing this years ago. Peace.
+
+PS: i don't plan to update this *piece of software*, i will archive it after i make sure description is finished (readme).
